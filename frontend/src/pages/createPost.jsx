@@ -106,7 +106,7 @@ const CreatePost = () => {
       const fd = new FormData();
       fd.append("image", await renderBlob(), "story.jpg");
       fd.append("caption", caption);
-      await axios.post("http://localhost:3000/posts", fd);
+      await axios.post(`${import.meta.env.VITE_API_URL}/posts`, fd);
       navigate("/feed");
     } catch (err) {
       console.error(err);

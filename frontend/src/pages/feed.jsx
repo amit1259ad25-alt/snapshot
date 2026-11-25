@@ -20,7 +20,7 @@ const Feed = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:3000/posts")
+      .get(`${import.meta.env.VITE_API_URL}/posts`)
       .then((res) => {
         const list = res.data.posts || [];
         setPosts(list.length > 0 ? list.slice().reverse() : DUMMY_POSTS);
@@ -38,7 +38,7 @@ const Feed = () => {
     if (busyId) return;
     setBusyId(id);
     try {
-      await axios.patch(`http://localhost:3000/posts/${id}`, {
+      await axios.patch(`${import.meta.env.VITE_API_URL}/posts/${id}`, {
         caption: editCaption,
       });
       setPosts((prev) =>
@@ -57,7 +57,7 @@ const Feed = () => {
     if (busyId) return;
     setBusyId(id);
     try {
-      await axios.delete(`http://localhost:3000/posts/${id}`);
+      await axios.delete(`${import.meta.env.VITE_API_URL}/posts/${id}`);
       setPosts((prev) => {
         const next = prev.filter((p) => p._id !== id);
         return next.length > 0 ? next : DUMMY_POSTS;
