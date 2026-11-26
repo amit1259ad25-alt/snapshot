@@ -1,211 +1,158 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const DUMMY_POSTS = [
-  {
-    _id: "1",
-    img_url:
-      "https://unsplash.com",
-    caption: "Beutiful scenery",
-  },
-];
+export default function Feed() {
+  const [posts, setPosts] = useState([]);
+  const navigate = useNavigate();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-const Feed = () => {
-  const [posts, setPosts] = useState(DUMMY_POSTS);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
-  const [editCaption, setEditCaption] = useState("");
-  const [busyId, setBusyId] = useState(null);
+  const fetchPosts = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts`);
+      setPosts(res.data.posts || res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/posts`)
-      .then((res) => {
-        const list = res.data.posts || [];
-        setPosts(list.length > 0 ? list.slice().reverse() : DUMMY_POSTS);
-      })
-      .catch(() => setPosts(DUMMY_POSTS))
-      .finally(() => setLoading(false));
+    fetchPosts();
   }, []);
 
-  const startEdit = (post) => {
-    setEditingId(post._id);
-    setEditCaption(post.caption || "");
-  };
-
-  const saveEdit = async (id) => {
-    if (busyId) return;
-    setBusyId(id);
-    try {
-      await axios.patch(`${import.meta.env.VITE_API_URL}/posts/${id}`, {
-        caption: editCaption,
-      });
-      setPosts((prev) =>
-        prev.map((p) => (p._id === id ? { ...p, caption: editCaption } : p))
-      );
-      setEditingId(null);
-    } catch (err) {
-      console.error("Update failed:", err);
-      alert("Could not update caption.");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const handleDelete = async (id) => {
-    if (busyId) return;
-    setBusyId(id);
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/posts/${id}`);
-      setPosts((prev) => {
-        const next = prev.filter((p) => p._id !== id);
-        return next.length > 0 ? next : DUMMY_POSTS;
+      await axios.delete(`${import.meta.env.VITE_API_URL}/posts/${id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
+      fetchPosts();
     } catch (err) {
-      console.error("Delete failed:", err);
-      alert("Could not delete post.");
-    } finally {
-      setBusyId(null);
+      console.error(err);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = "/";
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#090d16] text-white">
-      <header className="sticky top-0 z-20 bg-[#090d16]/85 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-md mx-auto px-4 py-3.5 flex items-center justify-between">
-          <h1 className="text-xl font-bold tracking-wide bg-gradient-to-r from-emerald-400 to-sky-400 bg-clip-text text-transparent">
-            Feed
-          </h1>
-          <Link
-            to="/create"
-            className="px-4 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-sm font-bold rounded-full transition active:scale-95"
-          >
-            + Create Post
-          </Link>
+    <div className="min-h-screen bg-[#07070a] bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:24px_24px] text-zinc-100 p-6">
+      <div className="max-w-lg mx-auto space-y-6">
+        {/* Top Navbar */}
+        <div className="flex items-center justify-between bg-zinc-900/80 backdrop-blur-xl border border-white/10 px-5 py-3.5 rounded-2xl">
+          <div>
+            <h1 className="text-lg font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
+              Feed
+            </h1>
+            {currentUser.name && (
+              <p className="text-xs text-zinc-400">
+                Hi, {currentUser.name}
+                {currentUser.role === "admin" && (
+                  <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-semibold">
+                    Admin
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/profile/${currentUser.id}`)}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition cursor-pointer"
+            >
+              My Profile
+            </button>
+            <button
+              onClick={() => navigate("/create")}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 transition cursor-pointer"
+            >
+              + Create Post
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition cursor-pointer"
+            >
+              Logout
+            </button>
+          </div>
         </div>
-      </header>
 
-      <main className="max-w-md mx-auto px-4 py-6 flex flex-col gap-6">
-        {loading
-          ? Array.from({ length: 2 }).map((_, n) => (
+        {/* All Posts List */}
+        <div className="space-y-5">
+          {posts.map((post) => {
+            const authorName = post.user?.name || post.userName || "User";
+            const authorUsername = post.user?.username || "member";
+            const isAuthorAdmin = post.user?.role === "admin";
+            const authorId = post.user?._id || post.user;
+
+            const canDelete =
+              currentUser.role === "admin" ||
+              (currentUser.id &&
+                (post.user?._id === currentUser.id ||
+                  post.user === currentUser.id));
+
+            return (
               <div
-                key={n}
-                className="bg-slate-900/70 border border-slate-800 rounded-3xl overflow-hidden animate-pulse"
+                key={post._id}
+                className="bg-zinc-900/90 border border-white/10 rounded-2xl overflow-hidden shadow-xl"
               >
-                <div className="aspect-[4/5] w-full bg-slate-800" />
-                <div className="p-4">
-                  <div className="h-4 w-3/4 bg-slate-800 rounded" />
-                </div>
-              </div>
-            ))
-          : posts.map((post, idx) => {
-              const imgSrc =
-                post.img_url || post.image || post.imageUrl || post.url;
-              const isDummy = post._id === "1";
-              const isEditing = editingId === post._id;
-
-              return (
-                <article
-                  key={post._id || idx}
-                  className="bg-white text-slate-900 rounded-3xl overflow-hidden shadow-[0_20px_50px_-15px_rgba(0,0,0,0.75)]"
-                >
-                  {imgSrc && (
-                    <div className="relative aspect-[4/5] w-full bg-slate-100 overflow-hidden">
-                      <img
-                        src={imgSrc}
-                        alt={post.caption || "Post image"}
-                        className="h-full w-full object-cover"
-                      />
-
-                      {!isDummy && (
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(post._id)}
-                          disabled={busyId === post._id}
-                          title="Remove post"
-                          className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/65 hover:bg-red-600 text-white text-xs font-semibold backdrop-blur-md transition cursor-pointer disabled:opacity-50"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            className="w-3.5 h-3.5"
-                          >
-                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                          <span>Remove</span>
-                        </button>
-                      )}
+                {/* User Profile Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                  <div
+                    onClick={() => authorId && navigate(`/profile/${authorId}`)}
+                    className="flex items-center gap-2.5 cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-600 to-fuchsia-500 flex items-center justify-center text-xs font-bold uppercase text-white">
+                      {authorName.charAt(0)}
                     </div>
-                  )}
-
-                  <div className="p-4">
-                    {isEditing ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editCaption}
-                          onChange={(e) => setEditCaption(e.target.value)}
-                          onKeyDown={(e) =>
-                            e.key === "Enter" && saveEdit(post._id)
-                          }
-                          autoFocus
-                          className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-slate-900"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => saveEdit(post._id)}
-                          disabled={busyId === post._id}
-                          className="px-3 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-xs font-bold rounded-xl cursor-pointer"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingId(null)}
-                          className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm sm:text-base font-medium text-slate-800 whitespace-pre-line break-words">
-                          {post.caption || "No caption"}
-                        </p>
-
-                        {!isDummy && (
-                          <button
-                            type="button"
-                            onClick={() => startEdit(post)}
-                            title="Edit caption"
-                            className="shrink-0 p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="w-4 h-4"
-                            >
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              <path d="m15 5 4 4" />
-                            </svg>
-                          </button>
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-100 leading-tight flex items-center gap-2">
+                        {authorName}
+                        {isAuthorAdmin && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-semibold">
+                            Admin
+                          </span>
                         )}
-                      </div>
-                    )}
+                      </p>
+                      <p className="text-xs text-violet-400">
+                        @{authorUsername}
+                      </p>
+                    </div>
                   </div>
-                </article>
-              );
-            })}
-      </main>
+
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(post._id)}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {/* Post Image */}
+                <img
+                  src={post.img_url || post.image}
+                  alt={post.caption}
+                  className="w-full h-auto max-h-[800px] object-cover bg-zinc-950"
+                />
+
+                {/* Caption */}
+                {post.caption && (
+                  <div className="p-4 text-sm text-zinc-200">
+                    <span className="font-semibold text-white mr-2">
+                      {authorName}
+                    </span>
+                    {post.caption}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
-};
-
-export default Feed;
+}
